@@ -1,53 +1,46 @@
-
 import express from 'express';
-import { Client, LocalAuth } from 'whatsapp-web.js';
 import qrcode from 'qrcode';
+import { Client } from 'whatsapp-web.js';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const client = new Client();
 
 app.use(express.json());
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: { headless: true }
-});
-
-let qrCodeData = null;
+let latestQR = "";
 
 client.on('qr', async (qr) => {
-    qrCodeData = await qrcode.toDataURL(qr);
-    console.log('[QR] Escaneie o QR Code para conectar ao WhatsApp.');
+  latestQR = await qrcode.toDataURL(qr);
+  console.log('QR Code atualizado');
 });
 
 client.on('ready', () => {
-    console.log('[WA] Cliente conectado e pronto para uso.');
+  console.log('WhatsApp conectado!');
 });
 
 client.initialize();
 
-// Endpoint para obter o QR Code
 app.get('/qr', (req, res) => {
-    if (qrCodeData) {
-        res.send(`<img src="${qrCodeData}" />`);
-    } else {
-        res.send('QR Code ainda não gerado ou já expirado.');
-    }
+  if (latestQR) {
+    res.send(`<img src="${latestQR}" />`);
+  } else {
+    res.send('QR Code ainda não gerado. Aguarde...');
+  }
 });
 
-// Endpoint para enviar mensagem
 app.post('/send', async (req, res) => {
-    const { number, message } = req.body;
-    const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-
-    try {
-        await client.sendMessage(chatId, message);
-        res.json({ status: 'Mensagem enviada com sucesso.' });
-    } catch (error) {
-        res.status(500).json({ status: 'Erro ao enviar mensagem.', error: error.message });
-    }
+  const { number, message } = req.body;
+  try {
+    await client.sendMessage(`${number}@c.us`, message);
+    res.status(200).send('Mensagem enviada com sucesso');
+  } catch (error) {
+    res.status(500).send('Erro ao enviar mensagem');
+  }
 });
+
+// ESSA PARTE É A CRÍTICA PRO RAILWAY FUNCIONAR
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
